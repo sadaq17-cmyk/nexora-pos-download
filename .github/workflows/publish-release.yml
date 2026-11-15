@@ -51,7 +51,7 @@ jobs:
 
           New installs: download **${F}** below, run it and follow the setup steps, then sign in with your company account.
 
-          From this version on, Nexora POS Pro updates itself: new versions download in the background and install when you restart the app."
+          Updates now appear inside the app: press Update, then Restart to install. Receipt printing fixes and paper width (80/58 mm) setting."
 
       - name: Remove upload branch
         if: success()
