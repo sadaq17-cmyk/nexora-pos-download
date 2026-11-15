@@ -1,0 +1,58 @@
+# Publishes a Windows installer as a GitHub Release (also the auto-update feed).
+# Push a branch named upload-<version> containing:
+#   parts/<installer>.part*, parts/SHA256SUMS, parts/latest.yml, parts/<installer>.blockmap
+# This joins the parts, verifies the checksum, creates release v<version> with the
+# installer + latest.yml + blockmap (needed by the in-app updater), then deletes the branch.
+name: Publish installer release
+
+on:
+  push:
+    branches:
+      - "upload-*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Join and verify installer
+        id: join
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#upload-}"
+          FILE="Nexora-POS-Setup-${VERSION}.exe"
+          mkdir -p out
+          cat parts/${FILE}.part* > "out/${FILE}"
+          (cd out && sha256sum -c ../parts/SHA256SUMS)
+          grep -q "url: ${FILE}" parts/latest.yml
+          cp parts/latest.yml out/
+          if [ -f "parts/${FILE}.blockmap" ]; then cp "parts/${FILE}.blockmap" out/; fi
+          ls -la out
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "file=${FILE}" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          V="${{ steps.join.outputs.version }}"
+          F="${{ steps.join.outputs.file }}"
+          gh release create "v${V}" out/* parts/SHA256SUMS \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target main \
+            --latest \
+            --title "Nexora POS Pro ${V}" \
+            --notes "Nexora POS Pro for Windows 10/11 — version ${V}.
+
+          New installs: download **${F}** below, run it and follow the setup steps, then sign in with your company account.
+
+          From this version on, Nexora POS Pro updates itself: new versions download in the background and install when you restart the app."
+
+      - name: Remove upload branch
+        if: success()
+        run: git push origin --delete "${GITHUB_REF_NAME}"
